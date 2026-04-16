@@ -85,7 +85,7 @@ export function useSimulation(
             // DQL: cram as many training steps as possible per frame for speed
             // QL: moderate batching
             const stepsPerFrame = algorithm === 'DQL'
-                ? (maze.length > 30 ? 200 : 500)
+                ? (maze.length > 30 ? 800 : 1500)
                 : (maze.length > 30 ? 99 : 49);
             for (let i = 0; i < stepsPerFrame; i++) {
                 result = solverRef.current.step();
