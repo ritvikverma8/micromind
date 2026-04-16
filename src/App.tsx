@@ -92,6 +92,7 @@ function App() {
               algorithm={
                 algorithm === 'AStar' ? 'A* SEARCH' :
                 algorithm === 'Dijkstra' ? 'DIJKSTRA' :
+                algorithm === 'DQL' ? 'DEEP Q-LEARNING AI' :
                 'Q-LEARNING AI'
               }
               episode={metadata?.episode}

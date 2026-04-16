@@ -42,6 +42,7 @@ export const ControlBar: React.FC<ControlBarProps> = ({
               <option value="AStar">A* Search (Classical)</option>
               <option value="Dijkstra">Dijkstra (Classical)</option>
               <option value="QLearning">Q-Learning (AI)</option>
+              <option value="DQL">Deep Q-Learning (AI)</option>
             </select>
           </div>
 

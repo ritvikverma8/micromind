@@ -4,9 +4,10 @@ import type { MazeSolver, Position, StepResult } from '../core/types';
 import { AStar } from '../core/AStar';
 import { Dijkstra } from '../core/Dijkstra';
 import { QLearningAgent } from '../core/QLearningAgent';
+import { DQLAgent } from '../core/DQLAgent';
 
 export type SimulationStatus = 'idle' | 'running' | 'finished';
-export type AlgorithmType = 'AStar' | 'Dijkstra' | 'QLearning';
+export type AlgorithmType = 'AStar' | 'Dijkstra' | 'QLearning' | 'DQL';
 
 // Fix 2: Named speed levels (ms per tick) exposed to the UI
 export const SPEED_LEVELS = [
@@ -54,6 +55,8 @@ export function useSimulation(
             ? new AStar()
             : algorithm === 'Dijkstra'
             ? new Dijkstra()
+            : algorithm === 'DQL'
+            ? new DQLAgent()
             : new QLearningAgent();
 
         solverRef.current.initialize(maze, start, goal);
@@ -78,8 +81,12 @@ export function useSimulation(
 
         let result = solverRef.current.step();
 
-        if (algorithm === 'QLearning' && !result.isFinished) {
-            const stepsPerFrame = maze.length > 30 ? 99 : 49;
+        if ((algorithm === 'QLearning' || algorithm === 'DQL') && !result.isFinished) {
+            // DQL: cram as many training steps as possible per frame for speed
+            // QL: moderate batching
+            const stepsPerFrame = algorithm === 'DQL'
+                ? (maze.length > 30 ? 200 : 500)
+                : (maze.length > 30 ? 99 : 49);
             for (let i = 0; i < stepsPerFrame; i++) {
                 result = solverRef.current.step();
                 if (result.isFinished) break;
