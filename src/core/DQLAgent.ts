@@ -363,7 +363,7 @@ export class DQLAgent implements MazeSolver {
     this.pathFound = [...bfsOptimal];
     this.dqlPathLength = bestBfsIdx + 1;   // how many cells DQL "guided"
     this.bfsAssisted = bestBfsIdx < bfsOptimal.length - 1;
-    }
+
   }
 
   /** BFS between any two points — returns the shortest path or null */

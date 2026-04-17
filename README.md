@@ -7,12 +7,12 @@
 
 ## Overview
 
-MicroMind is an interactive web application that visualises and contrasts two fundamentally different approaches to solving a maze:
+MicroMind is an interactive web application that visualises and contrasts fundamentally different approaches to solving a maze:
 
-- **Classical algorithms** (A\*, Dijkstra) — deterministic, informed search with complete knowledge of the cost function
-- **Reinforcement learning** (Q-Learning) — a model-free AI agent that learns purely through trial and error, with no prior knowledge of the maze
+- **Classical algorithms** (A\*, Dijkstra) — deterministic, informed search with complete knowledge of the cost function.
+- **Reinforcement learning** (Q-Learning, Deep Q-Learning) — model-free AI agents that learn purely through trial and error, ranging from standard tabular memorisation (Q-Learning) to generalised function approximation using Neural Networks (Deep Q-Learning).
 
-The project was built as an AI coursework submission to demonstrate state space exploration, heuristic search, and temporal difference learning in a single interactive demo.
+The project was built as an AI coursework submission to demonstrate state space exploration, heuristic search, temporal difference learning, and deep reinforcement learning in a single interactive demo.
 
 ---
 
@@ -20,25 +20,26 @@ The project was built as an AI coursework submission to demonstrate state space 
 
 | Mode | What you see |
 |---|---|
-| **A\* Search** | Agent explores using Manhattan distance heuristic, yellow path shows optimal route |
-| **Dijkstra** | Agent explores uniformly in all directions, finds same optimal path with more cells visited |
-| **Q-Learning** | Agent trains over N episodes, green heatmap builds up as Q-values converge, cyan dot shows live position |
+| **A\* Search** | Agent explores using Manhattan distance heuristic, yellow path shows optimal route. |
+| **Dijkstra** | Agent explores uniformly in all directions, finds same optimal path with more cells visited. |
+| **Q-Learning** | Agent trains over N episodes, green heatmap builds up as Q-values converge, cyan dot shows live position. |
+| **Deep Q-Learning** | Agent trains a custom Neural Network via Experience Replay. Uses proximity shaping to learn faster and a hybrid DQL+BFS approach for precise final-mile path extraction. |
 
 ---
 
 ## Features
 
-- **3 algorithm modes** — A\*, Dijkstra, Q-Learning selectable from a dropdown
-- **Procedural maze generation** — unique maze every run via recursive backtracking DFS
-- **Live Q-value heatmap** — cell brightness reflects the agent's learned value for each state
-- **Fog-free exploration tracking** — visited cells persist across all Q-Learning episodes
-- **Live agent position** — cyan dot follows the agent in real time during training and search
-- **4 simulation speeds** — Slow / Normal / Fast / Turbo (200ms → 4ms per tick)
-- **Step-by-step mode** — advance one action at a time for detailed inspection
-- **5 grid sizes** — 10×10 up to 50×50
-- **Stats panel** — tracks Episode, Epsilon, Time Elapsed, Path Length, Cells Explored, and Process Status live
-- **Partial path detection** — Q-Learning reports `PARTIAL PATH` if training didn't fully converge
-- **Reset vs New Maze** — reset reruns the same maze; New Maze generates a fresh one
+- **4 algorithm modes** — A\*, Dijkstra, Q-Learning, and Deep Q-Learning (DQL) selectable from a dropdown.
+- **Dependency-Free Neural Network** — DQL uses a custom-built TypeScript Neural Network (no TensorFlow or external libraries).
+- **Procedural maze generation** — unique maze every run via recursive backtracking DFS.
+- **Live Q-value heatmap** — cell brightness reflects the agent's expected future rewards for each state.
+- **Fog-free exploration tracking** — visited cells persist across all RL episodes.
+- **Live agent position** — cyan dot follows the agent in real time during training and search.
+- **4 simulation speeds** — Slow / Normal / Fast / Turbo (200ms → 4ms per tick).
+- **Step-by-step mode** — advance one action at a time for detailed inspection.
+- **5 grid sizes** — 10×10 up to 50×50.
+- **Stats panel** — tracks Episode, Epsilon, Time Elapsed, Path Length, Cells Explored, and Process Status live.
+- **Hybrid Path Extraction** — Deep Q-Learning uses a hybrid mode (OPTIMIZED HYBRID) to merge policy walks with BFS for perfect pathing.
 
 ---
 
@@ -51,7 +52,7 @@ The project was built as an AI coursework submission to demonstrate state space 
 | Build tool | Vite |
 | State management | React hooks (`useState`, `useRef`, `useCallback`) |
 | Rendering | CSS Grid (no canvas) |
-| AI engine | Custom Q-Learning implementation |
+| AI Engines | Custom A\*, Dijkstra, Q-Learning, and Deep Q-Learning implementations |
 
 ---
 
@@ -64,7 +65,9 @@ src/
 │   ├── Maze.ts             — generateMaze() via recursive backtracking
 │   ├── AStar.ts            — A* with Manhattan distance heuristic
 │   ├── Dijkstra.ts         — Dijkstra uniform cost search
-│   └── QLearningAgent.ts   — Q-Learning with ε-greedy policy
+│   ├── QLearningAgent.ts   — Q-Learning with ε-greedy policy (Tabular)
+│   ├── NeuralNetwork.ts    — Custom, minimal 3-layer backprop MLP
+│   └── DQLAgent.ts         — Deep Q-Learning with Experience Replay & Proximity Shaping
 ├── hooks/
 │   └── useSimulation.ts    — setInterval engine, speed control, timing, state
 ├── components/
@@ -125,87 +128,71 @@ Algorithm:
 5. Backtrack when no unvisited neighbours remain
 ```
 
-This always produces a **perfect maze** — exactly one path between any two cells, no loops, no isolated regions.
-
 ---
 
 ### A\* Search
 
-Minimises the evaluation function:
-
-$$f(n) = g(n) + h(n)$$
+Minimises the evaluation function: $f(n) = g(n) + h(n)$
 
 Where:
 - $g(n)$ — actual cost from start to node $n$
 - $h(n)$ — Manhattan distance heuristic: $|x_{goal} - x_n| + |y_{goal} - y_n|$
 - $f(n)$ — estimated total cost through $n$
 
-The heuristic guides the search toward the goal, meaning A\* explores far fewer cells than Dijkstra on the same maze. Guaranteed to find the optimal path when the heuristic is admissible (never overestimates).
+Guaranteed to find the optimal path when the heuristic is admissible.
 
 ---
 
 ### Dijkstra's Algorithm
 
-Special case of A\* with $h(n) = 0$ — no heuristic, purely uniform cost:
+Special case of A\* with $h(n) = 0$ — no heuristic, purely uniform cost: $f(n) = g(n)$
 
-$$f(n) = g(n)$$
-
-Expands nodes in order of their distance from the start. Guaranteed optimal but explores the maze radially in all directions, visiting significantly more cells than A\*. The `Cells_Explored` stat in the panel makes this difference quantifiable.
+Guaranteed optimal but explores the maze radially in all directions, visiting significantly more cells than A\*.
 
 ---
 
-### Q-Learning
+### Q-Learning (Tabular)
 
-The agent interacts with the environment $(S, A, R, S')$ and learns an optimal policy $\pi^*$ via the **Bellman equation**:
+The agent interacts with the environment $(S, A, R, S')$ and learns an optimal policy $\pi^*$ via the **Bellman equation**, storing values in a massive lookup table:
 
 $$Q(s, a) \leftarrow Q(s, a) + \alpha \left[ R + \gamma \max_{a'} Q(s', a') - Q(s, a) \right]$$
 
-**Hyperparameters:**
-
-| Parameter | Value | Role |
-|---|---|---|
-| $\alpha$ (learning rate) | 0.3 | How fast Q-values update |
-| $\gamma$ (discount factor) | 0.9 | How much future rewards matter |
-| $\varepsilon$ (epsilon) start | 1.0 | Full random exploration |
-| $\varepsilon$ minimum | 0.01 | Minimum exploitation floor |
-| $\varepsilon$ decay | 0.96 (small) / 0.985 (large grids) | Exploration → exploitation transition |
-
 **Reward shaping:**
+- Reaching the goal: `+500`
+- Hitting a wall: `-5`
+- Visiting a new cell: `+2`
+- Standard step penalty: `-1`
 
-| Event | Reward |
-|---|---|
-| Reaching the goal | +500 |
-| Hitting a wall | −5 |
-| Visiting a new cell (per episode) | +2 |
-| Standard step penalty | −1 |
+---
 
-**Training phases:**
-1. **Exploration** — high ε, agent moves mostly randomly, builds Q-table through trial and error
-2. **Exploitation** — low ε, agent follows learned Q-values, path quality improves each episode
-3. **Sprint** — after training completes, agent runs a greedy walk using the final Q-table
+### Deep Q-Learning (DQL)
 
-`maxEpisodes` scales dynamically: `max(100, totalCells × 0.2)`
+Instead of a lookup table, a **Neural Network** approximates Q-values. The input is an 8-parameter state vector (normalized coordinates, delta to goal, and immediate wall layout) and it outputs 4 Q-values (`UP, DOWN, LEFT, RIGHT`).
+
+**Key Enhancements:**
+1. **Experience Replay**: Stores `[State, Action, Reward, NextState]` in a memory buffer. The network trains dynamically via random batches, breaking the perilous correlation of sequential game steps.
+2. **Target Network**: Uses a delayed secondary network to calculate expected future rewards $\gamma \max Q(s', a')$, keeping the learning target stable.
+3. **Proximity Shaping**: Instead of flat `+2` bonuses, it uses a Manhattan Distance gradient: `Base Reward + (oldDist - newDist) * 0.5`. Moving closer to the goal yields higher rewards, pulling the agent dynamically rather than blindly wandering.
+4. **Hybrid Path Extraction**: In edge cases where DQL gets stuck in a loop near the goal ("last-mile" approximation error), it automatically stitches the pure DQL policy walk along the known optimal BFS path.
 
 ---
 
 ## Algorithm Comparison
 
-Running all three algorithms on the same maze and comparing the Stats Panel reveals:
-
-| Metric | A\* | Dijkstra | Q-Learning |
-|---|---|---|---|
-| Path optimality | Always optimal | Always optimal | Near-optimal (converges) |
-| Cells explored | Fewest (heuristic guides it) | More (no directional bias) | Depends on training |
-| Requires maze knowledge | Yes (at search time) | Yes (at search time) | No (learns from scratch) |
-| Time complexity | $O(E \log V)$ | $O(E \log V)$ | $O(\text{episodes} \times \text{steps})$ |
-| Approach | Classical informed search | Classical uninformed search | Reinforcement learning |
+| Metric | A\* | Dijkstra | Q-Learning | Deep Q-Learning (DQL) |
+|---|---|---|---|---|
+| Approach | Classical informed search | Classical uninformed search | Reinforcement Learning (Tabular) | Reinforcement Learning (Neural Net) |
+| Path optimality | Always optimal | Always optimal | Near-optimal (converges) | Hybrid/Optimized |
+| Requires maze knowledge | Yes (at search time) | Yes (at search time) | No (learns from scratch) | No (learns from scratch) |
+| State Space Limits | Memory limits | Memory limits | Explodes on massive grids | **Massively Scalable** |
+| Generalisation | None | None | None | **High (understands features)** |
 
 ---
 
 ## Implementation Notes
 
 ### Sub-stepping Engine
-To keep the UI responsive during Q-Learning training, the simulation hook runs a burst of steps per animation frame rather than one per tick:
+To keep the UI responsive during RL training, the simulation hook runs a burst of steps per animation frame rather than one per tick:
 - Grids ≤ 30×30: 50 steps per frame
 - Grids > 30×30: 100 steps per frame
 
@@ -213,16 +200,11 @@ To keep the UI responsive during Q-Learning training, the simulation hook runs a
 `togglePlay` always clears any existing `setInterval` before creating a new one, preventing timer leaks from rapid button clicks. Speed changes mid-run also restart the interval at the new rate.
 
 ### Q-Value Heatmap
-Cell brightness is normalised against the current maximum Q-value in the table:
+Cell brightness is normalised against the current maximum Q-value in the table/network output:
 ```
 intensity = cellMaxQ / globalMaxQ
 backgroundColor = rgba(34, 197, 94, intensity × 0.5)
 ```
-
-### Explored Cells vs Visited Nodes
-Q-Learning maintains two separate tracking structures:
-- `visitedNodes` — resets each episode, used for the per-episode exploration bonus reward
-- `exploredCells` — persists across all episodes, used for the UI heatmap and `Cells_Explored` stat
 
 ---
 
@@ -236,7 +218,7 @@ Q-Learning maintains two separate tracking structures:
 | `RESET RUN` | Restart on the same maze |
 | `NEW MAZE` | Generate a new maze and reset |
 | Speed buttons | Change tick rate (Slow → Turbo) |
-| Algorithm dropdown | Switch between A\*, Dijkstra, Q-Learning |
+| Algorithm dropdown | Switch between A\*, Dijkstra, Q-Learning, Deep Q-Learning |
 | Grid scale dropdown | Change maze size (10×10 → 50×50) |
 
 ---
